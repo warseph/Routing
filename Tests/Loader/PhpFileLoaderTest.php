@@ -54,4 +54,3 @@ class PhpFileLoaderTest extends \PHPUnit_Framework_TestCase
         $this->assertEquals('RouteCompiler', $route->getOption('compiler_class'));
     }
 }
-
