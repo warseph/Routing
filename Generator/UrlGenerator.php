@@ -26,38 +26,14 @@ use Symfony\Component\HttpKernel\Log\LoggerInterface;
  *
  * @api
  */
-class UrlGenerator implements UrlGeneratorInterface, ConfigurableRequirementsInterface
+class UrlGenerator implements UrlGeneratorInterface
 {
     protected $context;
-    protected $strictRequirements = true;
+    protected $strictParameters = true;
     protected $logger;
-
-    /**
-     * This array defines the characters (besides alphanumeric ones) that will not be percent-encoded in the path segment of the generated URL.
-     *
-     * PHP's rawurlencode() encodes all chars except "a-zA-Z0-9-._~" according to RFC 3986. But we want to allow some chars
-     * to be used in their literal form (reasons below). Other chars inside the path must of course be encoded, e.g.
-     * "?" and "#" (would be interpreted wrongly as query and fragment identifier),
-     * "'" and """ (are used as delimiters in HTML).
-     */
     protected $decodedChars = array(
-        // the slash can be used to designate a hierarchical structure and we want allow using it with this meaning
-        // some webservers don't allow the slash in encoded form in the path for security reasons anyway
-        // see http://stackoverflow.com/questions/4069002/http-400-if-2f-part-of-get-url-in-jboss
+        // %2F is not valid in a URL, so we don't encode it (which is fine as the requirements explicitly allowed it)
         '%2F' => '/',
-        // the following chars are general delimiters in the URI specification but have only special meaning in the authority component
-        // so they can safely be used in the path in unencoded form
-        '%40' => '@',
-        '%3A' => ':',
-        // these chars are only sub-delimiters that have no predefined meaning and can therefore be used literally
-        // so URI producing applications can use these chars to delimit subcomponents in a path segment without being encoded for better readability
-        '%3B' => ';',
-        '%2C' => ',',
-        '%3D' => '=',
-        '%2B' => '+',
-        '%21' => '!',
-        '%2A' => '*',
-        '%7C' => '|',
     );
 
     protected $routes;
@@ -95,19 +71,23 @@ class UrlGenerator implements UrlGeneratorInterface, ConfigurableRequirementsInt
     }
 
     /**
-     * {@inheritdoc}
+     * Enables or disables the exception on incorrect parameters.
+     *
+     * @param Boolean $enabled
      */
-    public function setStrictRequirements($enabled)
+    public function setStrictParameters($enabled)
     {
-        $this->strictRequirements = (Boolean) $enabled;
+        $this->strictParameters = $enabled;
     }
 
     /**
-     * {@inheritdoc}
+     * Gets the strict check of incorrect parameters.
+     *
+     * @return Boolean
      */
-    public function isStrictRequirements()
+    public function getStrictParameters()
     {
-        return $this->strictRequirements;
+        return $this->strictParameters;
     }
 
     /**
@@ -122,14 +102,14 @@ class UrlGenerator implements UrlGeneratorInterface, ConfigurableRequirementsInt
         // the Route has a cache of its own and is not recompiled as long as it does not get modified
         $compiledRoute = $route->compile();
 
-        return $this->doGenerate($compiledRoute->getVariables(), $route->getDefaults(), $route->getRequirements(), $compiledRoute->getTokens(), $parameters, $name, $absolute);
+        return $this->doGenerate($compiledRoute->getVariables(), $route->getDefaults(), $route->getRequirements(), $compiledRoute->getTokens(), $parameters, $name, $absolute, $compiledRoute->getHostnameTokens());
     }
 
     /**
      * @throws MissingMandatoryParametersException When route has some missing mandatory parameters
      * @throws InvalidParameterException When a parameter value is not correct
      */
-    protected function doGenerate($variables, $defaults, $requirements, $tokens, $parameters, $name, $absolute)
+    protected function doGenerate($variables, $defaults, $requirements, $tokens, $parameters, $name, $absolute, $hostnameTokens)
     {
         $variables = array_flip($variables);
 
@@ -151,7 +131,7 @@ class UrlGenerator implements UrlGeneratorInterface, ConfigurableRequirementsInt
                         // check requirement
                         if ($tparams[$token[3]] && !preg_match('#^'.$token[2].'$#', $tparams[$token[3]])) {
                             $message = sprintf('Parameter "%s" for route "%s" must match "%s" ("%s" given).', $token[3], $name, $token[2], $tparams[$token[3]]);
-                            if ($this->strictRequirements) {
+                            if ($this->strictParameters) {
                                 throw new InvalidParameterException($message);
                             }
 
@@ -164,7 +144,7 @@ class UrlGenerator implements UrlGeneratorInterface, ConfigurableRequirementsInt
                     }
 
                     if (!$isEmpty || !$optional) {
-                        $url = $token[1].$tparams[$token[3]].$url;
+                        $url = $token[1].strtr(rawurlencode($tparams[$token[3]]), $this->decodedChars).$url;
                     }
 
                     $optional = false;
@@ -175,21 +155,8 @@ class UrlGenerator implements UrlGeneratorInterface, ConfigurableRequirementsInt
             }
         }
 
-        if ('' === $url) {
+        if (!$url) {
             $url = '/';
-        }
-
-        // do not encode the contexts base url as it is already encoded (see Symfony\Component\HttpFoundation\Request)
-        $url = $this->context->getBaseUrl().strtr(rawurlencode($url), $this->decodedChars);
-
-        // the path segments "." and ".." are interpreted as relative reference when resolving a URI; see http://tools.ietf.org/html/rfc3986#section-3.3
-        // so we need to encode them as they are not used for this purpose here
-        // otherwise we would generate a URI that, when followed by a user agent (e.g. browser), does not match this route
-        $url = strtr($url, array('/../' => '/%2E%2E/', '/./' => '/%2E/'));
-        if ('/..' === substr($url, -3)) {
-            $url = substr($url, 0, -2) . '%2E%2E';
-        } elseif ('/.' === substr($url, -2)) {
-            $url = substr($url, 0, -1) . '%2E';
         }
 
         // add a query string if needed
@@ -198,11 +165,36 @@ class UrlGenerator implements UrlGeneratorInterface, ConfigurableRequirementsInt
             $url .= '?'.$query;
         }
 
-        if ($this->context->getHost()) {
+        $url = $this->context->getBaseUrl().$url;
+
+        if ($host = $this->context->getHost()) {
             $scheme = $this->context->getScheme();
             if (isset($requirements['_scheme']) && ($req = strtolower($requirements['_scheme'])) && $scheme != $req) {
                 $absolute = true;
                 $scheme = $req;
+            }
+
+            if ($hostnameTokens) {
+                $ghost = '';
+                foreach ($hostnameTokens as $token) {
+                    if ('variable' === $token[0]) {
+                        if (in_array($tparams[$token[3]], array(null, '', false), true)) {
+                            // check requirement
+                            if ($tparams[$token[3]] && !preg_match('#^'.$token[2].'$#', $tparams[$token[3]])) {
+                                throw new InvalidParameterException(sprintf('Parameter "%s" for route "%s" must match "%s" ("%s" given).', $token[3], $name, $token[2], $tparams[$token[3]]));
+                            }
+                        }
+
+                        $ghost = $token[1].$tparams[$token[3]].$ghost;
+                    } elseif ('text' === $token[0]) {
+                        $ghost = $token[1].$ghost;
+                    }
+                }
+
+                if ($ghost != $host) {
+                    $host = $ghost;
+                    $absolute = true;
+                }
             }
 
             if ($absolute) {
@@ -213,7 +205,7 @@ class UrlGenerator implements UrlGeneratorInterface, ConfigurableRequirementsInt
                     $port = ':'.$this->context->getHttpsPort();
                 }
 
-                $url = $scheme.'://'.$this->context->getHost().$port.$url;
+                $url = $scheme.'://'.$host.$port.$url;
             }
         }
 

@@ -14,7 +14,6 @@ namespace Symfony\Component\Routing;
 use Symfony\Component\Config\Loader\LoaderInterface;
 use Symfony\Component\Config\ConfigCache;
 use Symfony\Component\HttpKernel\Log\LoggerInterface;
-use Symfony\Component\Routing\Generator\ConfigurableRequirementsInterface;
 
 /**
  * The Router class is an example of the integration of all pieces of the
@@ -78,7 +77,7 @@ class Router implements RouterInterface
             'matcher_dumper_class'   => 'Symfony\\Component\\Routing\\Matcher\\Dumper\\PhpMatcherDumper',
             'matcher_cache_class'    => 'ProjectUrlMatcher',
             'resource_type'          => null,
-            'strict_requirements'    => true,
+            'strict_parameters'      => true,
         );
 
         // check option names and live merge, if errors are encountered Exception will be thrown
@@ -245,8 +244,8 @@ class Router implements RouterInterface
             $this->generator = new $class($this->context, $this->logger);
         }
 
-        if ($this->generator instanceof ConfigurableRequirementsInterface) {
-            $this->generator->setStrictRequirements($this->options['strict_requirements']);
+        if (false === $this->options['strict_parameters']) {
+            $this->generator->setStrictParameters(false);
         }
 
         return $this->generator;

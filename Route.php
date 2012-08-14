@@ -18,15 +18,16 @@ namespace Symfony\Component\Routing;
  *
  * @api
  */
-class Route implements \Serializable
+class Route
 {
     private $pattern;
     private $defaults;
     private $requirements;
     private $options;
     private $compiled;
+    private $hostnamePattern;
 
-    private static $compilers = array();
+    static private $compilers = array();
 
     /**
      * Constructor.
@@ -39,39 +40,22 @@ class Route implements \Serializable
      * @param array  $defaults     An array of default parameter values
      * @param array  $requirements An array of requirements for parameters (regexes)
      * @param array  $options      An array of options
+     * @param string $hostname     The hostname pattern to match
      *
      * @api
      */
-    public function __construct($pattern, array $defaults = array(), array $requirements = array(), array $options = array())
+    public function __construct($pattern, array $defaults = array(), array $requirements = array(), array $options = array(), $hostnamePattern = null)
     {
         $this->setPattern($pattern);
         $this->setDefaults($defaults);
         $this->setRequirements($requirements);
         $this->setOptions($options);
+        $this->setHostnamePattern($hostnamePattern);
     }
 
     public function __clone()
     {
         $this->compiled = null;
-    }
-
-    public function serialize()
-    {
-        return serialize(array(
-            'pattern' => $this->pattern,
-            'defaults' => $this->defaults,
-            'requirements' => $this->requirements,
-            'options' => $this->options,
-        ));
-    }
-
-    public function unserialize($data)
-    {
-        $data = unserialize($data);
-        $this->pattern = $data['pattern'];
-        $this->defaults = $data['defaults'];
-        $this->requirements = $data['requirements'];
-        $this->options = $data['options'];
     }
 
     /**
@@ -103,6 +87,18 @@ class Route implements \Serializable
         }
 
         $this->compiled = null;
+
+        return $this;
+    }
+
+    public function getHostnamePattern()
+    {
+        return $this->hostnamePattern;
+    }
+
+    public function setHostnamePattern($pattern)
+    {
+        $this->hostnamePattern = $pattern;
 
         return $this;
     }

@@ -37,7 +37,7 @@ class RouteCollectionTest extends \PHPUnit_Framework_TestCase
         $collection->add('f o o', $route);
     }
 
-    public function testOverriddenRoute()
+    public function testOverridenRoute()
     {
         $collection = new RouteCollection();
         $collection->add('foo', new Route('/foo'));
@@ -46,7 +46,7 @@ class RouteCollectionTest extends \PHPUnit_Framework_TestCase
         $this->assertEquals('/foo1', $collection->get('foo')->getPattern());
     }
 
-    public function testDeepOverriddenRoute()
+    public function testDeepOverridenRoute()
     {
         $collection = new RouteCollection();
         $collection->add('foo', new Route('/foo'));
@@ -64,7 +64,7 @@ class RouteCollectionTest extends \PHPUnit_Framework_TestCase
         $this->assertEquals('/foo2', $collection->get('foo')->getPattern());
     }
 
-    public function testIteratorWithOverriddenRoutes()
+    public function testIteratorWithOverridenRoutes()
     {
         $collection = new RouteCollection();
         $collection->add('foo', new Route('/foo'));
@@ -287,5 +287,19 @@ class RouteCollectionTest extends \PHPUnit_Framework_TestCase
         // test it now
 
         $this->assertEquals($rootCollection_A, $rootCollection_B);
+    }
+
+    public function testSetHostnamePattern()
+    {
+        $collection = new RouteCollection();
+        $routea = new Route('/a');
+        $routeb = new Route('/b', array(), array(), array(), '{locale}.example.net');
+        $collection->add('a', $routea);
+        $collection->add('b', $routeb);
+
+        $collection->setHostnamePattern('{locale}.example.com');
+
+        $this->assertEquals('{locale}.example.com', $routea->getHostnamePattern());
+        $this->assertEquals('{locale}.example.net', $routeb->getHostnamePattern());
     }
 }

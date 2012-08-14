@@ -39,5 +39,5 @@ interface UrlGeneratorInterface extends RequestContextAwareInterface
      *
      * @api
      */
-    public function generate($name, $parameters = array(), $absolute = false);
+    function generate($name, $parameters = array(), $absolute = false);
 }

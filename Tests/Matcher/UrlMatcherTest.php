@@ -178,7 +178,7 @@ class UrlMatcherTest extends \PHPUnit_Framework_TestCase
         $this->assertEquals(array('_route' => 'foo', 'foo' => "\n"), $matcher->match('/'.urlencode("\n").'/bar'), 'linefeed character is matched');
     }
 
-    public function testMatchOverriddenRoute()
+    public function testMatchOverridenRoute()
     {
         $collection = new RouteCollection();
         $collection->add('foo', new Route('/foo'));
@@ -241,5 +241,40 @@ class UrlMatcherTest extends \PHPUnit_Framework_TestCase
 
         $matcher = new UrlMatcher($coll, new RequestContext());
         $this->assertEquals(array('foo' => 'bar%23', '_route' => 'foo'), $matcher->match('/foo/bar%2523'));
+    }
+
+    public function testWithHostname()
+    {
+        $coll = new RouteCollection();
+        $coll->add('foo', new Route('/foo/{foo}', array(), array(), array(), '{locale}.example.com'));
+
+        $matcher = new UrlMatcher($coll, new RequestContext('', 'GET', 'en.example.com'));
+        $this->assertEquals(array('foo' => 'bar', '_route' => 'foo', 'locale' => 'en'), $matcher->match('/foo/bar'));
+    }
+
+    public function testWithHostnameOnRouteCollection()
+    {
+        $coll = new RouteCollection();
+        $coll->add('foo', new Route('/foo/{foo}'));
+        $coll->add('bar', new Route('/bar/{foo}', array(), array(), array(), '{locale}.example.net'));
+        $coll->setHostnamePattern('{locale}.example.com');
+
+        $matcher = new UrlMatcher($coll, new RequestContext('', 'GET', 'en.example.com'));
+        $this->assertEquals(array('foo' => 'bar', '_route' => 'foo', 'locale' => 'en'), $matcher->match('/foo/bar'));
+
+        $matcher = new UrlMatcher($coll, new RequestContext('', 'GET', 'en.example.net'));
+        $this->assertEquals(array('foo' => 'bar', '_route' => 'bar', 'locale' => 'en'), $matcher->match('/bar/bar'));
+    }
+
+    /**
+     * @expectedException Symfony\Component\Routing\Exception\ResourceNotFoundException
+     */
+    public function testWithOutHostnameHostnameDoesNotMatch()
+    {
+        $coll = new RouteCollection();
+        $coll->add('foo', new Route('/foo/{foo}', array(), array(), array(), '{locale}.example.com'));
+
+        $matcher = new UrlMatcher($coll, new RequestContext('', 'GET', 'example.com'));
+        $matcher->match('/foo/bar');
     }
 }

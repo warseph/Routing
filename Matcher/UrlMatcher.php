@@ -117,6 +117,11 @@ class UrlMatcher implements UrlMatcherInterface
             if (!preg_match($compiledRoute->getRegex(), $pathinfo, $matches)) {
                 continue;
             }
+            $hostnameMatches = array();
+
+            if ($compiledRoute->getHostnameRegex() && !preg_match($compiledRoute->getHostnameRegex(), $this->context->getHost(), $hostnameMatches)) {
+                continue;
+            }
 
             // check HTTP method requirement
             if ($req = $route->getRequirement('_method')) {
@@ -142,7 +147,7 @@ class UrlMatcher implements UrlMatcherInterface
                 continue;
             }
 
-            return array_merge($this->mergeDefaults($matches, $route->getDefaults()), array('_route' => $name));
+            return array_merge($this->mergeDefaults($hostnameMatches + $matches, $route->getDefaults()), array('_route' => $name));
         }
     }
 
@@ -151,25 +156,25 @@ class UrlMatcher implements UrlMatcherInterface
      *
      * @param string $pathinfo The path
      * @param string $name     The route name
-     * @param Route  $route    The route
+     * @param string $route    The route
      *
      * @return array The first element represents the status, the second contains additional information
      */
     protected function handleRouteRequirements($pathinfo, $name, Route $route)
     {
-        // check HTTP scheme requirement
-        $scheme = $route->getRequirement('_scheme');
-        $status = $scheme && $scheme !== $this->context->getScheme() ? self::REQUIREMENT_MISMATCH : self::REQUIREMENT_MATCH;
+            // check HTTP scheme requirement
+            $scheme = $route->getRequirement('_scheme');
+            $status = $scheme && $scheme !== $this->context->getScheme() ? self::REQUIREMENT_MISMATCH : self::REQUIREMENT_MATCH;
 
-        return array($status, null);
+            return array($status, null);
     }
 
     /**
      * Get merged default parameters.
-     *
+     * 
      * @param array $params   The parameters
      * @param array $defaults The defaults
-     *
+     * 
      * @return array Merged default parameters
      */
     protected function mergeDefaults($params, $defaults)
